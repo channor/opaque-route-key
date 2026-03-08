@@ -1,0 +1,59 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Tests\TestCase;
+
+class {{ class }} extends TestCase
+{
+    private const MODEL_CLASS = {{ modelClass }};
+
+    private const FIXED_SALT_BASE = {{ fixedSaltBase }};
+
+    private mixed $originalHashSalt;
+
+    public function test_model_route_key_strategy_is_stable(): void
+    {
+        $modelClass = self::MODEL_CLASS;
+        $model = new $modelClass;
+
+        $minPayloadLength = (fn () => $this->routeKeyMinPayloadLength())->call($model);
+        $checkLength = (fn () => $this->routeKeyCheckLength())->call($model);
+        $offsetMultiplier = (fn () => $this->routeKeyOffsetMultiplier())->call($model);
+        $saltSuffix = (fn () => $this->routeKeySaltSuffix())->call($model);
+
+        $this->assertSame({{ minPayloadLength }}, $minPayloadLength);
+        $this->assertSame({{ checkLength }}, $checkLength);
+        $this->assertSame({{ offsetMultiplier }}, $offsetMultiplier);
+        $this->assertSame({{ saltSuffix }}, $saltSuffix);
+    }
+
+    public function test_model_route_key_outputs_are_stable(): void
+    {
+        $modelClass = self::MODEL_CLASS;
+
+{{ sampleAssertions }}
+    }
+
+    protected function setUp(): void
+    {
+        parent::setUp();
+
+        $this->originalHashSalt = config('hashed-route-key.salt');
+
+        config([
+            'hashed-route-key.salt' => self::FIXED_SALT_BASE,
+        ]);
+    }
+
+    protected function tearDown(): void
+    {
+        config([
+            'hashed-route-key.salt' => $this->originalHashSalt,
+        ]);
+
+        parent::tearDown();
+    }
+}
