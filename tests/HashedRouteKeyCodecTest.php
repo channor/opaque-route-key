@@ -78,7 +78,7 @@ class HashedRouteKeyCodecTest extends TestCase
     public function test_encode_rejects_negative_ids(): void
     {
         $this->expectException(\InvalidArgumentException::class);
-        new HashedRouteKeyCodec(salt: 'test')->encode(-1);
+        (new HashedRouteKeyCodec(salt: 'test'))->encode(-1);
     }
 
     public function test_constructor_rejects_short_alphabet(): void
