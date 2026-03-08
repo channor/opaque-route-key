@@ -108,7 +108,8 @@ class GenerateRouteKeyTestCommand extends Command
             return $this->discoverModelClasses();
         }
 
-        $modelClass = $this->resolveModelClass((string) $classOption);
+        /** @var string $classOption */
+        $modelClass = $this->resolveModelClass($classOption);
 
         if ($modelClass === null) {
             return null;
@@ -137,7 +138,7 @@ class GenerateRouteKeyTestCommand extends Command
             'App\\Models\\'.$option,
             'App\\Models\\'.Str::studly($option),
             'App\\Models\\'.Str::studly(Str::singular($option)),
-        ], static fn (mixed $candidate): bool => is_string($candidate) && $candidate !== '')));
+        ], static fn (string $candidate): bool => $candidate !== '')));
 
         foreach ($candidates as $candidate) {
             if (class_exists($candidate) && is_subclass_of($candidate, Model::class)) {
@@ -156,7 +157,8 @@ class GenerateRouteKeyTestCommand extends Command
      */
     private function discoverModelClasses(): ?array
     {
-        $namespace = trim((string) $this->option('namespace'), '\\');
+        $namespaceOption = $this->option('namespace');
+        $namespace = is_string($namespaceOption) ? trim($namespaceOption, '\\') : 'App\\Models';
         $modelPath = $this->resolveModelPath($namespace);
 
         if ($modelPath === null) {
@@ -229,7 +231,8 @@ class GenerateRouteKeyTestCommand extends Command
      */
     private function targetPath(string $modelClass): string
     {
-        $directory = (string) $this->option('path');
+        $pathOption = $this->option('path');
+        $directory = is_string($pathOption) ? $pathOption : 'tests/Feature/RouteKeys';
 
         return $this->projectBasePath(trim($directory, '/').'/'.class_basename($modelClass).'RouteKeyContractTest.php');
     }

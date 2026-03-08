@@ -3,6 +3,24 @@
     "description": "Deterministic hashed route keys for integer IDs with keyed integrity checks.",
     "type": "library",
     "license": "MIT",
+    "keywords": [
+        "laravel",
+        "route-key",
+        "hashed-route-key",
+        "obfuscation",
+        "hashids"
+    ],
+    "homepage": "https://github.com/channor/hashed-route-key",
+    "support": {
+        "issues": "https://github.com/channor/hashed-route-key/issues",
+        "source": "https://github.com/channor/hashed-route-key/tree/main"
+    },
+    "authors": [
+        {
+            "name": "Channor",
+            "homepage": "https://github.com/channor"
+        }
+    ],
     "autoload": {
         "psr-4": {
             "Channor\\HashedRouteKey\\": "src/"
@@ -20,7 +38,17 @@
         "illuminate/support": "^11.0|^12.0"
     },
     "require-dev": {
-        "orchestra/testbench": "^10.0",
+        "laravel/pint": "^1.21",
+        "orchestra/testbench": "^9.0|^10.0",
+        "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^11.0|^12.0"
+    },
+    "scripts": {
+        "test": "phpunit -c phpunit.xml.dist",
+        "format": "pint",
+        "analyse": "phpstan analyse"
+    },
+    "config": {
+        "sort-packages": true
     }
 }

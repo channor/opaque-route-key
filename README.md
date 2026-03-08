@@ -46,6 +46,12 @@ tampered hashes.
 
 ## Installation
 
+Supported targets:
+
+- PHP 8.2, 8.3, and 8.4
+- Laravel 11 and 12
+
+
 Register the service provider in `bootstrap/providers.php`:
 
 ```php
