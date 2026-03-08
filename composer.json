@@ -50,5 +50,12 @@
     },
     "config": {
         "sort-packages": true
+    },
+    "extra": {
+        "laravel": {
+            "providers": [
+                "Channor\\HashedRouteKey\\HashedRouteKeyServiceProvider"
+            ]
+        }
     }
 }

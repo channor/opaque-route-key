@@ -51,8 +51,9 @@ Supported targets:
 - PHP 8.2, 8.3, and 8.4
 - Laravel 11 and 12
 
+Laravel package discovery will register the service provider automatically.
 
-Register the service provider in `bootstrap/providers.php`:
+If your application disables package discovery, register the provider manually in `bootstrap/providers.php`:
 
 ```php
 return [
