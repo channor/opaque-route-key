@@ -3,22 +3,22 @@
 Deterministic, model-level opaque route keys for Laravel.
 
 Replaces sequential integer IDs in URLs with compact, HMAC-verified route keys without storing
-anything extra in the database.
+anything extra in the database:
 
 ```text
 /teams/3             -> /teams/kX9mG7
 /teams/3/members/42  -> /teams/kX9mG7/members/bR4nYp2w
 ```
 
-The result is deterministic and decodable. It is obfuscation with integrity checks, not encryption
-and not a one-way hash.
+The result is deterministic and decodable. It is obfuscation with integrity checks, **not encryption,
+not secrecy, and not authorization**.
 
-## Why this package exists
+> **Note:** This package is not a security boundary and does not replace authentication,
+> authorization, or signed URLs.
 
-This package was built for Laravel apps that want opaque route keys to be a model-level concern. The
-trait-based integration keeps route-key generation and route binding on the model itself, while
-deriving distinct salts per model so the same integer ID produces different route keys across
-different models by default.
+The Eloquent trait keeps route-key generation and route binding on the model itself, while deriving
+distinct salts per model so the same integer ID produces different route keys across models by
+default.
 
 ## Installation
 
@@ -31,9 +31,8 @@ Supported targets:
 - PHP 8.2, 8.3, and 8.4
 - Laravel 11 and 12
 
-Laravel package discovery will register the service provider automatically.
-
-If your application disables package discovery, register the provider manually in `bootstrap/providers.php`:
+Laravel package discovery registers the service provider automatically. If your application disables
+package discovery, register it manually in `bootstrap/providers.php`:
 
 ```php
 return [
@@ -42,13 +41,13 @@ return [
 ];
 ```
 
-Publish config:
+Publish config when you need to customize behavior:
 
 ```bash
 php artisan vendor:publish --tag=opaque-route-key-config
 ```
 
-## Quick start
+## Quick Start
 
 Add the trait to an Eloquent model with an integer primary key:
 
@@ -62,246 +61,14 @@ class Team extends Model
 ```
 
 That is enough for route model binding and `route()` URL generation to use the opaque key.
-Serialization includes the computed `route_key` by default, and can be customized or disabled.
+Serialization includes the computed `route_key` by default.
 
-## Upgrade to v2
+## Upgrade To V2
 
-Version `2.0.0` removes the deprecated `hashed-route-key` compatibility layer that was kept during
-`v1.x`.
+Version `2.0.0` removes the deprecated `hashed-route-key` compatibility layer kept during `v1.x`.
+See [the v2 upgrade guide](docs/upgrade-v2.md) for package, import, and config migration steps.
 
-```bash
-composer remove channor/hashed-route-key
-composer require channor/opaque-route-key:^2.0
-```
-
-If you already use `channor/opaque-route-key`, update the existing constraint instead:
-
-```bash
-composer require channor/opaque-route-key:^2.0
-```
-
-Update old imports:
-
-```php
-use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
-use Channor\OpaqueRouteKey\OpaqueRouteKeyServiceProvider;
-use Channor\OpaqueRouteKey\UsesOpaqueRouteKey;
-```
-
-Rename old configuration:
-
-- `config/hashed-route-key.php` -> `config/opaque-route-key.php`
-- `HASHED_ROUTE_KEY_SALT` -> `OPAQUE_ROUTE_KEY_SALT`
-- `hashed-route-key-config` publish tag -> `opaque-route-key-config`
-
-Keep the same effective salt value when renaming config/env keys. Route-key outputs remain stable
-when the effective salt and per-model strategy settings stay the same. If you still need the
-deprecated `Channor\HashedRouteKey` API, stay on `channor/opaque-route-key:^1.1`.
-
-## How it works
-
-1. Encodes `id + offset` as a base-62 payload using a salt-shuffled alphabet.
-2. Appends a keyed HMAC-based check tag.
-3. Verifies the check tag before decoding.
-4. Optionally retries with a deterministic alternate salt if the generated key is in `reserved_words`.
-
-The result is deterministic and decodable, while rejecting nearly all cross-salt, cross-model, or
-tampered keys.
-
-## Stability warning
-
-Once URLs are public, the following settings must stay stable per model. Changing any of them can
-invalidate existing URLs or change future generated URLs for that model:
-
-- salt base: `config('opaque-route-key.salt')`
-- salt suffix: `routeKeySaltSuffix()`
-- payload length: `routeKeyMinPayloadLength()`
-- check length: `routeKeyCheckLength()`
-- offset multiplier: `routeKeyOffsetMultiplier()`
-- reserved words: `config('opaque-route-key.reserved_words')`
-- reserved-word case sensitivity: `config('opaque-route-key.reserved_words_case_sensitive')`
-- auto-reserved model names: `config('opaque-route-key.auto_reserve_model_names')`
-- reserved-word attempts: `config('opaque-route-key.reserved_word_max_attempts')`
-
-## Reserved words
-
-Use `reserved_words` when a generated route key would collide with route words such as `create`,
-`edit`, or `new`:
-
-```php
-return [
-    'reserved_words' => [
-        // 'admin',
-        // 'root',
-        // 'create',
-        // 'edit',
-        // 'new',
-        // 'settings',
-        // 'search',
-    ],
-    'reserved_words_case_sensitive' => true,
-    'auto_reserve_model_names' => false,
-    'reserved_word_max_attempts' => 10,
-];
-```
-
-The default list is empty to preserve existing outputs and because reserved route words are
-application-specific. With the default encoding settings, generated keys are at least 7 characters
-long, so shorter words cannot be emitted. When a key collides with a reserved word, the codec
-retries deterministically until it finds a non-reserved key or exhausts
-`reserved_word_max_attempts`. If every configured attempt collides, encoding throws a
-`RuntimeException` instead of emitting a reserved route key.
-
-Manual reserved words are case-sensitive by default. Reserving `account` will not reserve `aCcOuNt`
-unless you set `reserved_words_case_sensitive` to `false`.
-
-When `auto_reserve_model_names` is `true`, each model using the trait also reserves its lowercase
-singular and plural class basename. For example, `Account` reserves `account` and `accounts`.
-These auto-reserved model names are always matched case-insensitively, independent of
-`reserved_words_case_sensitive`, so `account` also reserves keys such as `aCcOuNt`. Override
-`routeKeyReservedModelNames()` on the model if your route words need a different shape. The default
-is `false`.
-
-Attempt `0` is the original `v1.0.x` encoding, so existing URLs remain decodable even if you later
-reserve a word that an existing key used. However, enabling or changing `reserved_words`,
-`reserved_words_case_sensitive`, or `auto_reserve_model_names` can change future output for affected
-IDs, so treat them as part of your public URL contract.
-
-## Contract test generator
-
-The package ships with an Artisan command that generates stable app-level contract tests for models
-using `UsesOpaqueRouteKey`:
-
-```bash
-php artisan route-key:generate-test --class=User
-php artisan route-key:generate-test --class=App\\Models\\Project --force
-php artisan route-key:generate-test --all
-php artisan route-key:generate-test --reserved
-php artisan route-key:generate-test --all --reserved
-php artisan route-key:generate-test --all --namespace=App\\Domain\\People\\Models
-php artisan route-key:generate-test --all --namespace=Domain\\People\\Models --model-path=src/Domain/People/Models
-```
-
-The command:
-
-- resolves common model inputs such as `User`, `Users`, or a fully qualified class name
-- can scan all models using the trait with `--all`
-- verifies that the model uses `UsesOpaqueRouteKey`
-- writes model strategy assertions and fixed-output route-key assertions using a fixed salt base
-- writes a separate `ReservedOpaqueRouteKeyTest` with `--reserved` to pin reserved-word stability
-
-By default, generated tests are written to `tests/Feature/RouteKeys`. Use `--path=` to write them
-elsewhere.
-
-## Per-model overrides
-
-Override any strategy method on the model when the defaults do not fit:
-
-```php
-class Account extends Model
-{
-    use UsesOpaqueRouteKey;
-
-    protected function routeKeyMinPayloadLength(): int
-    {
-        return 2;
-    }
-
-    protected function routeKeyCheckLength(): int
-    {
-        return 3;
-    }
-
-    protected function routeKeyOffsetMultiplier(): int
-    {
-        return 2;
-    }
-
-    protected function routeKeySaltSuffix(): string
-    {
-        return 'account';
-    }
-}
-```
-
-## Salt derivation
-
-By default, the trait builds the codec salt from:
-
-1. `config('opaque-route-key.salt')`
-2. `routeKeySaltSuffix()`, which defaults to `snake_case(class_basename(Model::class))`
-
-For example, `App\Models\Project` uses a salt shaped like:
-
-```php
-config('opaque-route-key.salt').':project'
-```
-
-The default config uses `OPAQUE_ROUTE_KEY_SALT` and falls back to `APP_KEY`. Changing the effective
-salt changes all emitted keys for all models using the trait unless you keep the effective salt
-stable.
-
-If you need a custom or shared model suffix, override `routeKeySaltSuffix()` on that model. Keep the
-suffix stable once URLs are public.
-
-## Appending `route_key`
-
-The trait can append a computed route-key attribute during array / JSON serialization.
-
-Global config:
-
-```php
-return [
-    'append_route_key' => true,
-    'default_attribute_name' => 'route_key',
-];
-```
-
-Per-model overrides:
-
-```php
-protected bool|string $appendRouteKey = false;
-```
-
-```php
-protected bool|string $appendRouteKey = 'opaque_key';
-```
-
-You can also override the method directly when you need custom logic:
-
-```php
-public function appendRouteKey(): bool|string
-{
-    return $this->is_public ? 'route_key' : false;
-}
-```
-
-## Behavior on decode failure
-
-When an opaque key is invalid, tampered, wrong-model, or malformed:
-
-- `OpaqueRouteKeyCodec::decode()` returns `null`
-- route model binding queries `WHERE id = -1`, which matches nothing and results in a `404`
-- `$model->route_key` returns `null` on unsaved models
-
-If you need to work with the lower-level codec directly, use the same model-specific salt strategy
-that the trait uses:
-
-```php
-use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
-
-$codec = new OpaqueRouteKeyCodec(
-    salt: config('opaque-route-key.salt').':team',
-    minPayloadLength: config('opaque-route-key.min_payload_length'),
-    checkLength: config('opaque-route-key.check_length'),
-    offsetMultiplier: config('opaque-route-key.offset_multiplier'),
-);
-
-$routeKey = $codec->encode(42);
-$id = $codec->decode($routeKey); // 42
-```
-
-## Config reference
+## Configuration
 
 ```php
 return [
@@ -339,7 +106,133 @@ return [
 | `auto_reserve_model_names` | Reserve each model's lowercase singular and plural basename | `false` |
 | `reserved_word_max_attempts` | Maximum candidate encodings, including the original | `10` |
 
-## Capacity math (base-62)
+Once URLs are public, keep the effective salt and per-model strategy settings stable. Changing salt,
+salt suffix, payload length, check length, offset multiplier, reserved words, or reserved-word
+attempt settings can invalidate existing URLs or change future generated URLs for affected IDs.
+
+## Reserved Words
+
+`reserved_words` prevents the codec from emitting route keys that collide with route paths such as
+`create`, `edit`, or `new`. The default list is empty because reserved route words are
+application-specific. With the default encoding settings, generated keys are at least 7 characters
+long, so shorter words cannot be emitted.
+
+Manual reserved words are case-sensitive by default. Reserving `account` will not reserve `aCcOuNt`
+unless `reserved_words_case_sensitive` is `false`.
+
+When `auto_reserve_model_names` is `true`, each model using the trait reserves its lowercase singular
+and plural class basename, for example `account` and `accounts` for `Account`. These model-name
+reservations are always matched case-insensitively.
+
+If a generated key is reserved, the codec retries deterministic alternate encodings up to
+`reserved_word_max_attempts`. If every attempt collides, encoding throws a `RuntimeException`.
+Existing keys remain decodable even if you later reserve a word that was previously emitted.
+
+## Customization
+
+Override strategy methods on a model when the defaults do not fit:
+
+```php
+class Account extends Model
+{
+    use UsesOpaqueRouteKey;
+
+    protected function routeKeyMinPayloadLength(): int
+    {
+        return 2;
+    }
+
+    protected function routeKeyCheckLength(): int
+    {
+        return 3;
+    }
+
+    protected function routeKeyOffsetMultiplier(): int
+    {
+        return 2;
+    }
+
+    protected function routeKeySaltSuffix(): string
+    {
+        return 'account';
+    }
+}
+```
+
+By default, the codec salt is:
+
+```php
+config('opaque-route-key.salt').':'.routeKeySaltSuffix()
+```
+
+`routeKeySaltSuffix()` defaults to `snake_case(class_basename(Model::class))`. Keep custom suffixes
+stable once URLs are public.
+
+To customize the serialized attribute:
+
+```php
+protected bool|string $appendRouteKey = false;
+```
+
+```php
+protected bool|string $appendRouteKey = 'opaque_key';
+```
+
+```php
+public function appendRouteKey(): bool|string
+{
+    return $this->is_public ? 'route_key' : false;
+}
+```
+
+## Contract Tests
+
+Generate app-level stability tests before changing route-key settings:
+
+```bash
+php artisan route-key:generate-test --class=User
+php artisan route-key:generate-test --all
+php artisan route-key:generate-test --reserved
+php artisan route-key:generate-test --all --reserved
+```
+
+Useful options:
+
+- `--force` overwrites existing generated tests
+- `--path=tests/Feature/RouteKeys` changes the output directory
+- `--namespace=App\\Domain\\People\\Models` changes the `--all` discovery namespace
+- `--model-path=src/Domain/People/Models` sets discovery for non-`App\\...` namespaces
+
+Generated model tests pin strategy values and fixed route-key outputs. The reserved config test pins
+reserved-word settings.
+
+## Decode Failures
+
+When an opaque key is invalid, tampered, wrong-model, or malformed:
+
+- `OpaqueRouteKeyCodec::decode()` returns `null`
+- route model binding queries `WHERE id = -1`, which matches nothing and results in a `404`
+- `$model->route_key` returns `null` on unsaved models
+
+## Advanced Usage
+
+If you need the lower-level codec directly, use the same model-specific salt strategy as the trait:
+
+```php
+use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
+
+$codec = new OpaqueRouteKeyCodec(
+    salt: config('opaque-route-key.salt').':team',
+    minPayloadLength: config('opaque-route-key.min_payload_length'),
+    checkLength: config('opaque-route-key.check_length'),
+    offsetMultiplier: config('opaque-route-key.offset_multiplier'),
+);
+
+$routeKey = $codec->encode(42);
+$id = $codec->decode($routeKey); // 42
+```
+
+Capacity with the default base-62 alphabet:
 
 | Payload length | Unique values |
 |----------------|---------------|
@@ -359,12 +252,9 @@ your needs and existing conventions.
 
 ## Notes
 
-- This is obfuscation with integrity checks, not encryption.
-- This package is not a security boundary and does not replace authentication, authorization, or
-  signed URLs.
 - Only non-negative integer IDs are supported.
 
-## Development note
+## Development Note
 
 This package was developed with LLM assistance. Final design, review, and release decisions remain
 with the maintainer.
