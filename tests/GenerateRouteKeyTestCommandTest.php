@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Channor\HashedRouteKey\Tests;
+namespace Channor\OpaqueRouteKey\Tests;
 
-use Channor\HashedRouteKey\Console\Commands\GenerateRouteKeyTestCommand;
+use Channor\OpaqueRouteKey\Console\Commands\GenerateRouteKeyTestCommand;
 use Illuminate\Support\Facades\File;
 use Illuminate\Support\Str;
 use Symfony\Component\Console\Tester\CommandTester;
@@ -25,7 +25,7 @@ class GenerateRouteKeyTestCommandTest extends TestCase
     {
         parent::setUp();
 
-        $this->sandboxRoot = sys_get_temp_dir().'/hashed-route-key-test-'.bin2hex(random_bytes(8));
+        $this->sandboxRoot = sys_get_temp_dir().'/opaque-route-key-test-'.bin2hex(random_bytes(8));
         $suffix = Str::studly(bin2hex(random_bytes(4)));
         $this->fixtureModelClass = 'RouteKeyCommandFixtureModel'.$suffix;
         $this->plainFixtureClass = 'PlainRouteKeyCommandFixture'.$suffix;
@@ -82,12 +82,51 @@ class GenerateRouteKeyTestCommandTest extends TestCase
 
         $this->assertStringContainsString('namespace Tests\\GeneratedRouteKeyContracts;', $contents);
         $this->assertStringContainsString('private const MODEL_CLASS = \\App\\Models\\'.$this->fixtureModelClass.'::class;', $contents);
-        $this->assertStringContainsString('$this->assertSame(3, $minPayloadLength);', $contents);
-        $this->assertStringContainsString('$this->assertSame(4, $checkLength);', $contents);
+        $this->assertStringContainsString('private const CHANGE_MESSAGE = \'Route-key contract changed.', $contents);
+        $this->assertStringContainsString('$this->assertSame(3, $minPayloadLength, self::CHANGE_MESSAGE);', $contents);
+        $this->assertStringContainsString('$this->assertSame(4, $checkLength, self::CHANGE_MESSAGE);', $contents);
         $this->assertStringContainsString(
-            '$this->assertSame(\''.Str::snake($this->fixtureModelClass).'\', $saltSuffix);',
+            '$this->assertSame(\''.Str::snake($this->fixtureModelClass).'\', $saltSuffix, self::CHANGE_MESSAGE);',
             $contents,
         );
+        $this->assertStringContainsString('$this->assertSame(\'', $contents);
+        $this->assertStringContainsString('$model->getRouteKey(), self::CHANGE_MESSAGE);', $contents);
+        $this->assertStringNotContainsString('test_reserved_route_key_config_is_stable', $contents);
+    }
+
+    public function test_it_generates_a_reserved_route_key_config_contract_test(): void
+    {
+        config([
+            'opaque-route-key.reserved_words' => ['admin', 'account'],
+            'opaque-route-key.reserved_words_case_sensitive' => true,
+            'opaque-route-key.auto_reserve_model_names' => false,
+            'opaque-route-key.reserved_word_max_attempts' => 10,
+        ]);
+
+        $tester = $this->runCommand([
+            '--reserved' => true,
+            '--path' => 'tests/GeneratedRouteKeyContracts',
+        ]);
+
+        $this->assertSame(GenerateRouteKeyTestCommand::SUCCESS, $tester->getStatusCode());
+        $this->assertStringContainsString('Generated reserved route-key config contract test', $tester->getDisplay());
+
+        $path = $this->sandboxPath('tests/GeneratedRouteKeyContracts/ReservedOpaqueRouteKeyTest.php');
+
+        $this->assertFileExists($path);
+
+        $contents = (string) File::get($path);
+
+        $this->assertStringContainsString('class ReservedOpaqueRouteKeyTest extends TestCase', $contents);
+        $this->assertStringContainsString('namespace Tests\\GeneratedRouteKeyContracts;', $contents);
+        $this->assertStringContainsString('private const ROUTE_KEY_CONFIG = \'opaque-route-key\';', $contents);
+        $this->assertStringContainsString('private const CHANGE_MESSAGE = \'Reserved route-key config changed.', $contents);
+        $this->assertStringContainsString('$this->assertSame(array (', $contents);
+        $this->assertStringContainsString('0 => \'admin\'', $contents);
+        $this->assertStringContainsString('1 => \'account\'', $contents);
+        $this->assertStringContainsString('$this->assertSame(true, config(self::ROUTE_KEY_CONFIG.\'.reserved_words_case_sensitive\'), self::CHANGE_MESSAGE);', $contents);
+        $this->assertStringContainsString('$this->assertSame(false, config(self::ROUTE_KEY_CONFIG.\'.auto_reserve_model_names\'), self::CHANGE_MESSAGE);', $contents);
+        $this->assertStringContainsString('$this->assertSame(10, config(self::ROUTE_KEY_CONFIG.\'.reserved_word_max_attempts\'), self::CHANGE_MESSAGE);', $contents);
     }
 
     public function test_it_overwrites_existing_contract_test_with_force(): void
@@ -98,6 +137,22 @@ class GenerateRouteKeyTestCommandTest extends TestCase
 
         $tester = $this->runCommand([
             '--class' => $this->fixtureModelClass,
+            '--path' => 'tests/GeneratedRouteKeyContracts',
+            '--force' => true,
+        ]);
+
+        $this->assertSame(GenerateRouteKeyTestCommand::SUCCESS, $tester->getStatusCode());
+        $this->assertStringNotContainsString('stale', (string) File::get($path));
+    }
+
+    public function test_it_overwrites_existing_reserved_contract_test_with_force(): void
+    {
+        $path = $this->sandboxPath('tests/GeneratedRouteKeyContracts/ReservedOpaqueRouteKeyTest.php');
+
+        File::put($path, 'stale');
+
+        $tester = $this->runCommand([
+            '--reserved' => true,
             '--path' => 'tests/GeneratedRouteKeyContracts',
             '--force' => true,
         ]);
@@ -131,6 +186,27 @@ class GenerateRouteKeyTestCommandTest extends TestCase
         );
         $this->assertFileExists(
             $this->sandboxPath('tests/GeneratedRouteKeyContracts/'.$this->secondaryFixtureClass.'RouteKeyContractTest.php'),
+        );
+    }
+
+    public function test_it_can_generate_all_model_contracts_and_reserved_contract_together(): void
+    {
+        $tester = $this->runCommand([
+            '--all' => true,
+            '--reserved' => true,
+            '--path' => 'tests/GeneratedRouteKeyContracts',
+        ]);
+
+        $this->assertSame(GenerateRouteKeyTestCommand::SUCCESS, $tester->getStatusCode());
+        $this->assertStringContainsString('Route-key contract generation complete: 3 generated, 0 skipped.', $tester->getDisplay());
+        $this->assertFileExists(
+            $this->sandboxPath('tests/GeneratedRouteKeyContracts/'.$this->fixtureModelClass.'RouteKeyContractTest.php'),
+        );
+        $this->assertFileExists(
+            $this->sandboxPath('tests/GeneratedRouteKeyContracts/'.$this->secondaryFixtureClass.'RouteKeyContractTest.php'),
+        );
+        $this->assertFileExists(
+            $this->sandboxPath('tests/GeneratedRouteKeyContracts/ReservedOpaqueRouteKeyTest.php'),
         );
     }
 
@@ -225,7 +301,7 @@ class GenerateRouteKeyTestCommandTest extends TestCase
 
     public function test_it_fails_when_all_discovery_finds_no_trait_models(): void
     {
-        $emptyRoot = sys_get_temp_dir().'/hashed-route-key-empty-'.bin2hex(random_bytes(8));
+        $emptyRoot = sys_get_temp_dir().'/opaque-route-key-empty-'.bin2hex(random_bytes(8));
         File::ensureDirectoryExists($emptyRoot.'/app/Models');
         File::ensureDirectoryExists($emptyRoot.'/tests/GeneratedRouteKeyContracts');
 
@@ -236,7 +312,7 @@ class GenerateRouteKeyTestCommandTest extends TestCase
             ], $emptyRoot);
 
             $this->assertSame(GenerateRouteKeyTestCommand::FAILURE, $tester->getStatusCode());
-            $this->assertStringContainsString('No models using UsesHashedRouteKey were found', $tester->getDisplay());
+            $this->assertStringContainsString('No models using UsesOpaqueRouteKey or deprecated UsesHashedRouteKey were found', $tester->getDisplay());
         } finally {
             File::deleteDirectory($emptyRoot);
         }
@@ -285,8 +361,8 @@ class GenerateRouteKeyTestCommandTest extends TestCase
     {
         File::ensureDirectoryExists(dirname($path));
 
-        $traitImport = $usesTrait ? "use Channor\\HashedRouteKey\\UsesHashedRouteKey;\n" : '';
-        $traitUsage = $usesTrait ? "    use UsesHashedRouteKey;\n\n" : '';
+        $traitImport = $usesTrait ? "use Channor\\OpaqueRouteKey\\UsesOpaqueRouteKey;\n" : '';
+        $traitUsage = $usesTrait ? "    use UsesOpaqueRouteKey;\n\n" : '';
 
         File::put($path, <<<PHP
 <?php

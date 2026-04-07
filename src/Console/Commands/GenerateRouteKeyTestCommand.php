@@ -2,10 +2,11 @@
 
 declare(strict_types=1);
 
-namespace Channor\HashedRouteKey\Console\Commands;
+namespace Channor\OpaqueRouteKey\Console\Commands;
 
-use Channor\HashedRouteKey\HashedRouteKeyCodec;
 use Channor\HashedRouteKey\UsesHashedRouteKey;
+use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
+use Channor\OpaqueRouteKey\UsesOpaqueRouteKey;
 use Illuminate\Console\Command;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Support\Facades\File;
@@ -24,23 +25,25 @@ class GenerateRouteKeyTestCommand extends Command
     protected $signature = 'route-key:generate-test
         {--class= : Model class, basename, or common plural alias}
         {--all : Generate tests for all models using the trait in the target namespace}
+        {--reserved : Generate a package-level reserved route-key config contract test}
         {--namespace=App\\Models : Model namespace used for --all discovery}
         {--model-path= : Model directory used for --all discovery}
         {--path=tests/Feature/RouteKeys : Directory to write the generated test into}
         {--force : Overwrite an existing generated test file}';
 
-    protected $description = 'Generate a stable route-key contract test for a model using UsesHashedRouteKey.';
+    protected $description = 'Generate a stable route-key contract test for a model using UsesOpaqueRouteKey.';
 
     public function handle(): int
     {
-        $modelClasses = $this->resolveModelClasses();
+        $generateReservedConfigTest = (bool) $this->option('reserved');
+        $modelClasses = $this->resolveModelClasses($generateReservedConfigTest);
 
         if ($modelClasses === null) {
             return self::FAILURE;
         }
 
-        if ($modelClasses === []) {
-            $this->warn('No models using UsesHashedRouteKey were found for the requested scope.');
+        if ($modelClasses === [] && ! $generateReservedConfigTest) {
+            $this->warn('No models using UsesOpaqueRouteKey or deprecated UsesHashedRouteKey were found for the requested scope.');
 
             return self::FAILURE;
         }
@@ -73,6 +76,26 @@ class GenerateRouteKeyTestCommand extends Command
             $generatedCount++;
         }
 
+        if ($generateReservedConfigTest) {
+            $targetPath = $this->reservedConfigTargetPath();
+
+            if (File::exists($targetPath) && ! $this->option('force')) {
+                if ($modelClasses === []) {
+                    $this->error(sprintf('Test file already exists at [%s]. Use --force to overwrite it.', $targetPath));
+
+                    return self::FAILURE;
+                }
+
+                $this->line(sprintf('Skipped existing reserved route-key config contract test at [%s].', $targetPath));
+                $skippedCount++;
+            } else {
+                File::ensureDirectoryExists(dirname($targetPath));
+                File::put($targetPath, $this->renderReservedConfigTest());
+                $this->info(sprintf('Generated reserved route-key config contract test at [%s].', $targetPath));
+                $generatedCount++;
+            }
+        }
+
         if (count($modelClasses) > 1) {
             $this->info(sprintf(
                 'Route-key contract generation complete: %d generated, %d skipped.',
@@ -87,7 +110,7 @@ class GenerateRouteKeyTestCommand extends Command
     /**
      * @return list<class-string<Model>>|null
      */
-    private function resolveModelClasses(): ?array
+    private function resolveModelClasses(bool $allowEmptyForReservedConfigTest = false): ?array
     {
         $all = (bool) $this->option('all');
         $classOption = $this->option('class');
@@ -99,6 +122,10 @@ class GenerateRouteKeyTestCommand extends Command
         }
 
         if (! $all && (! is_string($classOption) || trim($classOption) === '')) {
+            if ($allowEmptyForReservedConfigTest) {
+                return [];
+            }
+
             $this->error('Either --class or --all is required.');
 
             return null;
@@ -115,10 +142,11 @@ class GenerateRouteKeyTestCommand extends Command
             return null;
         }
 
-        if (! $this->usesHashedRouteKey($modelClass)) {
+        if (! $this->usesOpaqueRouteKey($modelClass)) {
             $this->error(sprintf(
-                'Model [%s] does not use %s.',
+                'Model [%s] does not use %s or deprecated %s.',
                 $modelClass,
+                UsesOpaqueRouteKey::class,
                 UsesHashedRouteKey::class,
             ));
 
@@ -186,7 +214,7 @@ class GenerateRouteKeyTestCommand extends Command
                     return null;
                 }
 
-                return $this->usesHashedRouteKey($class) ? $class : null;
+                return $this->usesOpaqueRouteKey($class) ? $class : null;
             })
             ->filter()
             ->values()
@@ -221,9 +249,12 @@ class GenerateRouteKeyTestCommand extends Command
     /**
      * @param  class-string<Model>  $modelClass
      */
-    private function usesHashedRouteKey(string $modelClass): bool
+    private function usesOpaqueRouteKey(string $modelClass): bool
     {
-        return in_array(UsesHashedRouteKey::class, class_uses_recursive($modelClass), true);
+        $traits = class_uses_recursive($modelClass);
+
+        return in_array(UsesOpaqueRouteKey::class, $traits, true)
+            || in_array(UsesHashedRouteKey::class, $traits, true);
     }
 
     /**
@@ -235,6 +266,14 @@ class GenerateRouteKeyTestCommand extends Command
         $directory = is_string($pathOption) ? $pathOption : 'tests/Feature/RouteKeys';
 
         return $this->projectBasePath(trim($directory, '/').'/'.class_basename($modelClass).'RouteKeyContractTest.php');
+    }
+
+    private function reservedConfigTargetPath(): string
+    {
+        $pathOption = $this->option('path');
+        $directory = is_string($pathOption) ? $pathOption : 'tests/Feature/RouteKeys';
+
+        return $this->projectBasePath(trim($directory, '/').'/ReservedOpaqueRouteKeyTest.php');
     }
 
     /**
@@ -253,6 +292,7 @@ class GenerateRouteKeyTestCommand extends Command
             '{{ checkLength }}' => (string) $this->callProtected($model, 'routeKeyCheckLength'),
             '{{ offsetMultiplier }}' => (string) $this->callProtected($model, 'routeKeyOffsetMultiplier'),
             '{{ saltSuffix }}' => var_export((string) $this->callProtected($model, 'routeKeySaltSuffix'), true),
+            '{{ configName }}' => var_export((string) $this->callProtected($model, 'routeKeyConfigName'), true),
             '{{ sampleAssertions }}' => $this->sampleAssertions($model),
         ];
 
@@ -280,26 +320,64 @@ class GenerateRouteKeyTestCommand extends Command
         return (fn () => $this->{$method}())->call($model);
     }
 
+    private function renderReservedConfigTest(): string
+    {
+        $targetPath = $this->reservedConfigTargetPath();
+        $configName = 'opaque-route-key';
+
+        $replacements = [
+            '{{ namespace }}' => $this->namespaceFor($targetPath),
+            '{{ configName }}' => var_export($configName, true),
+            '{{ reservedWords }}' => var_export($this->reservedWordsConfig($configName), true),
+            '{{ reservedWordsCaseSensitive }}' => config($configName.'.reserved_words_case_sensitive', true) ? 'true' : 'false',
+            '{{ autoReserveModelNames }}' => config($configName.'.auto_reserve_model_names', false) ? 'true' : 'false',
+            '{{ reservedWordMaxAttempts }}' => (string) (int) config($configName.'.reserved_word_max_attempts', 10),
+        ];
+
+        return str_replace(
+            array_keys($replacements),
+            array_values($replacements),
+            (string) File::get($this->reservedConfigStubPath()),
+        );
+    }
+
+    /**
+     * @return array<array-key, string>
+     */
+    private function reservedWordsConfig(string $configName): array
+    {
+        $reservedWords = config($configName.'.reserved_words', []);
+
+        if (! is_array($reservedWords)) {
+            throw new \RuntimeException('Route key reserved words must be an array.');
+        }
+
+        return $reservedWords;
+    }
+
     private function sampleAssertions(Model $model): string
     {
-        $codec = new HashedRouteKeyCodec(
+        $codec = new OpaqueRouteKeyCodec(
             salt: self::FIXED_SALT_BASE.':'.$this->callProtected($model, 'routeKeySaltSuffix'),
             minPayloadLength: (int) $this->callProtected($model, 'routeKeyMinPayloadLength'),
             checkLength: (int) $this->callProtected($model, 'routeKeyCheckLength'),
             offsetMultiplier: (int) $this->callProtected($model, 'routeKeyOffsetMultiplier'),
+            reservedWords: [],
+            reservedWordsCaseSensitive: true,
+            reservedWordMaxAttempts: 10,
         );
 
         $keyName = $model->getKeyName();
 
         return collect(self::SAMPLE_IDS)
             ->map(function (int $id) use ($keyName, $codec): string {
-                $hash = $codec->encode($id);
+                $routeKey = $codec->encode($id);
                 $quotedKeyName = var_export($keyName, true);
 
                 return <<<PHP
                         \$model = new \$modelClass;
                         \$model->forceFill([{$quotedKeyName} => {$id}]);
-                        \$this->assertSame('{$hash}', \$model->getRouteKey());
+                        \$this->assertSame('{$routeKey}', \$model->getRouteKey(), self::CHANGE_MESSAGE);
                 PHP;
             })
             ->implode("\n\n");
@@ -319,5 +397,10 @@ class GenerateRouteKeyTestCommand extends Command
     protected function stubPath(): string
     {
         return __DIR__.'/../../../stubs/route-key-contract.test.stub';
+    }
+
+    protected function reservedConfigStubPath(): string
+    {
+        return __DIR__.'/../../../stubs/reserved-route-key-contract.test.stub';
     }
 }

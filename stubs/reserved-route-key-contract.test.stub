@@ -1,0 +1,22 @@
+<?php
+
+declare(strict_types=1);
+
+namespace {{ namespace }};
+
+use Tests\TestCase;
+
+class ReservedOpaqueRouteKeyTest extends TestCase
+{
+    private const ROUTE_KEY_CONFIG = {{ configName }};
+
+    private const CHANGE_MESSAGE = 'Reserved route-key config changed. Existing URLs may change for affected IDs. If this was intentional, regenerate this test with php artisan route-key:generate-test --reserved.';
+
+    public function test_reserved_route_key_config_is_stable(): void
+    {
+        $this->assertSame({{ reservedWords }}, config(self::ROUTE_KEY_CONFIG.'.reserved_words'), self::CHANGE_MESSAGE);
+        $this->assertSame({{ reservedWordsCaseSensitive }}, config(self::ROUTE_KEY_CONFIG.'.reserved_words_case_sensitive'), self::CHANGE_MESSAGE);
+        $this->assertSame({{ autoReserveModelNames }}, config(self::ROUTE_KEY_CONFIG.'.auto_reserve_model_names'), self::CHANGE_MESSAGE);
+        $this->assertSame({{ reservedWordMaxAttempts }}, config(self::ROUTE_KEY_CONFIG.'.reserved_word_max_attempts'), self::CHANGE_MESSAGE);
+    }
+}

@@ -12,7 +12,19 @@ class {{ class }} extends TestCase
 
     private const FIXED_SALT_BASE = {{ fixedSaltBase }};
 
-    private mixed $originalHashSalt;
+    private const ROUTE_KEY_CONFIG = {{ configName }};
+
+    private const CHANGE_MESSAGE = 'Route-key contract changed. Existing URLs may become unstable. If this was intentional, regenerate this test with php artisan route-key:generate-test.';
+
+    private mixed $originalRouteKeySalt;
+
+    private mixed $originalReservedWords;
+
+    private mixed $originalReservedWordsCaseSensitive;
+
+    private mixed $originalReservedWordAutoReserveModelNames;
+
+    private mixed $originalReservedWordMaxAttempts;
 
     public function test_model_route_key_strategy_is_stable(): void
     {
@@ -24,10 +36,10 @@ class {{ class }} extends TestCase
         $offsetMultiplier = (fn () => $this->routeKeyOffsetMultiplier())->call($model);
         $saltSuffix = (fn () => $this->routeKeySaltSuffix())->call($model);
 
-        $this->assertSame({{ minPayloadLength }}, $minPayloadLength);
-        $this->assertSame({{ checkLength }}, $checkLength);
-        $this->assertSame({{ offsetMultiplier }}, $offsetMultiplier);
-        $this->assertSame({{ saltSuffix }}, $saltSuffix);
+        $this->assertSame({{ minPayloadLength }}, $minPayloadLength, self::CHANGE_MESSAGE);
+        $this->assertSame({{ checkLength }}, $checkLength, self::CHANGE_MESSAGE);
+        $this->assertSame({{ offsetMultiplier }}, $offsetMultiplier, self::CHANGE_MESSAGE);
+        $this->assertSame({{ saltSuffix }}, $saltSuffix, self::CHANGE_MESSAGE);
     }
 
     public function test_model_route_key_outputs_are_stable(): void
@@ -41,17 +53,29 @@ class {{ class }} extends TestCase
     {
         parent::setUp();
 
-        $this->originalHashSalt = config('hashed-route-key.salt');
+        $this->originalRouteKeySalt = config(self::ROUTE_KEY_CONFIG.'.salt');
+        $this->originalReservedWords = config(self::ROUTE_KEY_CONFIG.'.reserved_words');
+        $this->originalReservedWordsCaseSensitive = config(self::ROUTE_KEY_CONFIG.'.reserved_words_case_sensitive');
+        $this->originalReservedWordAutoReserveModelNames = config(self::ROUTE_KEY_CONFIG.'.auto_reserve_model_names');
+        $this->originalReservedWordMaxAttempts = config(self::ROUTE_KEY_CONFIG.'.reserved_word_max_attempts');
 
         config([
-            'hashed-route-key.salt' => self::FIXED_SALT_BASE,
+            self::ROUTE_KEY_CONFIG.'.salt' => self::FIXED_SALT_BASE,
+            self::ROUTE_KEY_CONFIG.'.reserved_words' => [],
+            self::ROUTE_KEY_CONFIG.'.reserved_words_case_sensitive' => true,
+            self::ROUTE_KEY_CONFIG.'.auto_reserve_model_names' => false,
+            self::ROUTE_KEY_CONFIG.'.reserved_word_max_attempts' => 10,
         ]);
     }
 
     protected function tearDown(): void
     {
         config([
-            'hashed-route-key.salt' => $this->originalHashSalt,
+            self::ROUTE_KEY_CONFIG.'.salt' => $this->originalRouteKeySalt,
+            self::ROUTE_KEY_CONFIG.'.reserved_words' => $this->originalReservedWords,
+            self::ROUTE_KEY_CONFIG.'.reserved_words_case_sensitive' => $this->originalReservedWordsCaseSensitive,
+            self::ROUTE_KEY_CONFIG.'.auto_reserve_model_names' => $this->originalReservedWordAutoReserveModelNames,
+            self::ROUTE_KEY_CONFIG.'.reserved_word_max_attempts' => $this->originalReservedWordMaxAttempts,
         ]);
 
         parent::tearDown();

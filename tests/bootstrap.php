@@ -15,6 +15,6 @@ foreach ($autoloadPaths as $autoloadPath) {
     }
 }
 
-fwrite(STDERR, "Unable to locate Composer autoload.php for hashed-route-key tests.\n");
+fwrite(STDERR, "Unable to locate Composer autoload.php for opaque-route-key tests.\n");
 
 exit(1);

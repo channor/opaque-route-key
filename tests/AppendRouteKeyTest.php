@@ -2,9 +2,9 @@
 
 declare(strict_types=1);
 
-namespace Channor\HashedRouteKey\Tests;
+namespace Channor\OpaqueRouteKey\Tests;
 
-use Channor\HashedRouteKey\UsesHashedRouteKey;
+use Channor\OpaqueRouteKey\UsesOpaqueRouteKey;
 use Illuminate\Database\Eloquent\Casts\Attribute;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
@@ -35,7 +35,7 @@ class AppendRouteKeyTest extends TestCase
 
     public function test_config_enabled_appends_route_key(): void
     {
-        config(['hashed-route-key.append_route_key' => true]);
+        config(['opaque-route-key.append_route_key' => true]);
 
         $model = AppendDefaultModel::create(['name' => 'test']);
         $array = $model->toArray();
@@ -46,7 +46,7 @@ class AppendRouteKeyTest extends TestCase
 
     public function test_config_disabled_skips_append(): void
     {
-        config(['hashed-route-key.append_route_key' => false]);
+        config(['opaque-route-key.append_route_key' => false]);
 
         $model = AppendDefaultModel::create(['name' => 'test']);
         $array = $model->toArray();
@@ -59,7 +59,7 @@ class AppendRouteKeyTest extends TestCase
         $model = AppendPropertyStringModel::create(['name' => 'test']);
         $array = $model->toArray();
 
-        $this->assertArrayHasKey('hash', $array);
+        $this->assertArrayHasKey('opaque_key', $array);
         $this->assertArrayNotHasKey('route_key', $array);
     }
 
@@ -88,12 +88,12 @@ class AppendRouteKeyTest extends TestCase
         $array = $model->toArray();
 
         $this->assertArrayHasKey('slug', $array);
-        $this->assertArrayNotHasKey('hash', $array);
+        $this->assertArrayNotHasKey('opaque_key', $array);
     }
 
     public function test_json_serialization_includes_appended_route_key(): void
     {
-        config(['hashed-route-key.append_route_key' => true]);
+        config(['opaque-route-key.append_route_key' => true]);
 
         $model = AppendDefaultModel::create(['name' => 'test']);
         $json = json_decode($model->toJson(), true);
@@ -105,7 +105,7 @@ class AppendRouteKeyTest extends TestCase
 
 class AppendDefaultModel extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
     protected $table = 'appendable_models';
 
@@ -114,15 +114,15 @@ class AppendDefaultModel extends Model
 
 class AppendPropertyStringModel extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
     protected $table = 'appendable_models';
 
     protected $guarded = [];
 
-    protected bool|string $appendRouteKey = 'hash';
+    protected bool|string $appendRouteKey = 'opaque_key';
 
-    protected function hash(): Attribute
+    protected function opaqueKey(): Attribute
     {
         return Attribute::make(get: fn () => $this->getRouteKey());
     }
@@ -130,7 +130,7 @@ class AppendPropertyStringModel extends Model
 
 class AppendWithExistingAppendsModel extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
     protected $table = 'appendable_models';
 
@@ -146,7 +146,7 @@ class AppendWithExistingAppendsModel extends Model
 
 class AppendMethodCustomModel extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
     protected $table = 'appendable_models';
 
@@ -165,13 +165,13 @@ class AppendMethodCustomModel extends Model
 
 class AppendMethodOverridesPropertyModel extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
     protected $table = 'appendable_models';
 
     protected $guarded = [];
 
-    protected bool|string $appendRouteKey = 'hash';
+    protected bool|string $appendRouteKey = 'opaque_key';
 
     public function appendRouteKey(): bool|string
     {
@@ -183,7 +183,7 @@ class AppendMethodOverridesPropertyModel extends Model
         return Attribute::make(get: fn () => $this->getRouteKey());
     }
 
-    protected function hash(): Attribute
+    protected function opaqueKey(): Attribute
     {
         return Attribute::make(get: fn () => $this->getRouteKey());
     }

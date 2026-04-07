@@ -1,19 +1,19 @@
 {
-    "name": "channor/hashed-route-key",
-    "description": "Deterministic hashed route keys for integer IDs with keyed integrity checks.",
+    "name": "channor/opaque-route-key",
+    "description": "Deterministic opaque route keys for integer IDs with keyed integrity checks.",
     "type": "library",
     "license": "MIT",
     "keywords": [
         "laravel",
         "route-key",
-        "hashed-route-key",
+        "opaque-route-key",
         "obfuscation",
         "hashids"
     ],
-    "homepage": "https://github.com/channor/hashed-route-key",
+    "homepage": "https://github.com/channor/opaque-route-key",
     "support": {
-        "issues": "https://github.com/channor/hashed-route-key/issues",
-        "source": "https://github.com/channor/hashed-route-key/tree/main"
+        "issues": "https://github.com/channor/opaque-route-key/issues",
+        "source": "https://github.com/channor/opaque-route-key/tree/main"
     },
     "authors": [
         {
@@ -23,12 +23,13 @@
     ],
     "autoload": {
         "psr-4": {
-            "Channor\\HashedRouteKey\\": "src/"
+            "Channor\\OpaqueRouteKey\\": "src/",
+            "Channor\\HashedRouteKey\\": "src/Compatibility/HashedRouteKey/"
         }
     },
     "autoload-dev": {
         "psr-4": {
-            "Channor\\HashedRouteKey\\Tests\\": "tests/"
+            "Channor\\OpaqueRouteKey\\Tests\\": "tests/"
         }
     },
     "require": {
@@ -43,10 +44,13 @@
         "phpstan/phpstan": "^2.1",
         "phpunit/phpunit": "^11.0|^12.0"
     },
+    "replace": {
+        "channor/hashed-route-key": "self.version"
+    },
     "scripts": {
         "test": "phpunit -c phpunit.xml.dist",
         "format": "pint",
-        "analyse": "phpstan analyse"
+        "analyse": "phpstan analyse --debug --no-progress"
     },
     "config": {
         "sort-packages": true
@@ -54,7 +58,7 @@
     "extra": {
         "laravel": {
             "providers": [
-                "Channor\\HashedRouteKey\\HashedRouteKeyServiceProvider"
+                "Channor\\OpaqueRouteKey\\OpaqueRouteKeyServiceProvider"
             ]
         }
     }

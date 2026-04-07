@@ -2,10 +2,10 @@
 
 declare(strict_types=1);
 
-namespace Channor\HashedRouteKey\Tests;
+namespace Channor\OpaqueRouteKey\Tests;
 
-use Channor\HashedRouteKey\HashedRouteKeyCodec;
-use Channor\HashedRouteKey\UsesHashedRouteKey;
+use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
+use Channor\OpaqueRouteKey\UsesOpaqueRouteKey;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\Schema\Blueprint;
 use Illuminate\Foundation\Testing\RefreshDatabase;
@@ -21,13 +21,13 @@ class RouteModelBindingTest extends TestCase
     {
         parent::setUp();
 
-        Schema::create('hashed_route_key_projects', function (Blueprint $table) {
+        Schema::create('opaque_route_key_projects', function (Blueprint $table) {
             $table->id();
             $table->string('name');
             $table->timestamps();
         });
 
-        Schema::create('hashed_route_key_tasks', function (Blueprint $table) {
+        Schema::create('opaque_route_key_tasks', function (Blueprint $table) {
             $table->id();
             $table->foreignId('project_id');
             $table->string('title');
@@ -40,8 +40,8 @@ class RouteModelBindingTest extends TestCase
 
     protected function tearDown(): void
     {
-        Schema::dropIfExists('hashed_route_key_tasks');
-        Schema::dropIfExists('hashed_route_key_projects');
+        Schema::dropIfExists('opaque_route_key_tasks');
+        Schema::dropIfExists('opaque_route_key_projects');
 
         parent::tearDown();
     }
@@ -60,12 +60,12 @@ class RouteModelBindingTest extends TestCase
     {
         $project = RouteFakeProject::create(['name' => 'Acme']);
 
-        $this->fakeRoute('get', '/hash-test/{project}', fn (RouteFakeProject $project) => response()->json([
+        $this->fakeRoute('get', '/opaque-test/{project}', fn (RouteFakeProject $project) => response()->json([
             'id' => $project->getKey(),
             'name' => $project->name,
         ]));
 
-        $this->get($this->routeUrl('/hash-test/'.$project->getRouteKey()))
+        $this->get($this->routeUrl('/opaque-test/'.$project->getRouteKey()))
             ->assertOk()
             ->assertJson([
                 'id' => $project->getKey(),
@@ -73,31 +73,31 @@ class RouteModelBindingTest extends TestCase
             ]);
     }
 
-    public function test_wrong_model_hash_returns_404(): void
+    public function test_wrong_model_key_returns_404(): void
     {
         $project = RouteFakeProject::create(['name' => 'Acme']);
 
-        $this->fakeRoute('get', '/hash-test/{project}', fn (RouteFakeProject $project) => response()->json([
+        $this->fakeRoute('get', '/opaque-test/{project}', fn (RouteFakeProject $project) => response()->json([
             'id' => $project->getKey(),
         ]));
 
-        $wrongCodec = new HashedRouteKeyCodec(salt: config('hashed-route-key.salt').':route_fake_task');
-        $wrongHash = $wrongCodec->encode((int) $project->getKey());
+        $wrongCodec = new OpaqueRouteKeyCodec(salt: config('opaque-route-key.salt').':route_fake_task');
+        $wrongKey = $wrongCodec->encode((int) $project->getKey());
 
-        $this->get($this->routeUrl('/hash-test/'.$wrongHash))->assertNotFound();
+        $this->get($this->routeUrl('/opaque-test/'.$wrongKey))->assertNotFound();
     }
 
-    public function test_nested_route_url_generation_uses_hashed_keys(): void
+    public function test_nested_route_url_generation_uses_opaque_keys(): void
     {
         $project = RouteFakeProject::create(['name' => 'Acme']);
         $task = RouteFakeTask::create(['project_id' => $project->getKey(), 'title' => 'Do stuff']);
 
-        $this->fakeRoute('get', '/hash-test/{project}/tasks/{task}', fn (RouteFakeProject $project, RouteFakeTask $task) => '')
-            ->name('hash.projects.tasks.show');
+        $this->fakeRoute('get', '/opaque-test/{project}/tasks/{task}', fn (RouteFakeProject $project, RouteFakeTask $task) => '')
+            ->name('opaque.projects.tasks.show');
 
         app('router')->getRoutes()->refreshNameLookups();
 
-        $url = route('hash.projects.tasks.show', ['project' => $project, 'task' => $task]);
+        $url = route('opaque.projects.tasks.show', ['project' => $project, 'task' => $task]);
 
         $this->assertStringContainsString($project->getRouteKey(), $url);
         $this->assertStringContainsString($task->getRouteKey(), $url);
@@ -106,18 +106,18 @@ class RouteModelBindingTest extends TestCase
 
 class RouteFakeProject extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
-    protected $table = 'hashed_route_key_projects';
+    protected $table = 'opaque_route_key_projects';
 
     protected $guarded = [];
 }
 
 class RouteFakeTask extends Model
 {
-    use UsesHashedRouteKey;
+    use UsesOpaqueRouteKey;
 
-    protected $table = 'hashed_route_key_tasks';
+    protected $table = 'opaque_route_key_tasks';
 
     protected $guarded = [];
 }

@@ -5,17 +5,6 @@ declare(strict_types=1);
 return [
     /*
     |--------------------------------------------------------------------------
-    | Legacy Compatibility Config
-    |--------------------------------------------------------------------------
-    |
-    | This file keeps applications using the old hashed-route-key config name
-    | working throughout v1.x. New applications should publish and maintain
-    | config/opaque-route-key.php instead.
-    |
-    */
-
-    /*
-    |--------------------------------------------------------------------------
     | Route-Key Salt
     |--------------------------------------------------------------------------
     |
@@ -24,7 +13,7 @@ return [
     | existing route keys.
     |
     */
-    'salt' => env('HASHED_ROUTE_KEY_SALT', env('OPAQUE_ROUTE_KEY_SALT', env('APP_KEY'))),
+    'salt' => env('OPAQUE_ROUTE_KEY_SALT', env('HASHED_ROUTE_KEY_SALT', env('APP_KEY'))),
 
     /*
     |--------------------------------------------------------------------------
@@ -63,7 +52,6 @@ return [
     |
     | Words listed here will not be emitted as generated route keys. Use this
     | to avoid collisions with route paths such as "create", "edit", or "new".
-    | Values must be strings. Matching is case-sensitive by default in v1.x.
     |
     */
     'reserved_words' => [],
@@ -78,8 +66,6 @@ return [
     | plural basename, for example "account" and "accounts" for Account.
     | These model-name reservations are always case-insensitive.
     |
-    | This defaults to false in v1.x and is planned to default to true in v2.
-    |
     */
     'auto_reserve_model_names' => false,
 
@@ -89,8 +75,7 @@ return [
     |--------------------------------------------------------------------------
     |
     | Maximum deterministic candidate encodings to try when a generated key is
-    | reserved. This integer must be at least 1 and includes the original
-    | v1.0.x-compatible attempt.
+    | reserved. This integer must be at least 1.
     |
     */
     'reserved_word_max_attempts' => 10,

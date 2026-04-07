@@ -3,7 +3,7 @@
          colors="true"
 >
     <testsuites>
-        <testsuite name="HashedRouteKey">
+        <testsuite name="OpaqueRouteKey">
             <directory>tests</directory>
         </testsuite>
     </testsuites>
