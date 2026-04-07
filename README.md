@@ -64,17 +64,23 @@ class Team extends Model
 That is enough for route model binding and `route()` URL generation to use the opaque key.
 Serialization includes the computed `route_key` by default, and can be customized or disabled.
 
-## Upgrade from `channor/hashed-route-key`
+## Upgrade to v2
 
-This package was renamed in `v1.1.0` because the generated value is decodable and is not a one-way
-hash.
+Version `2.0.0` removes the deprecated `hashed-route-key` compatibility layer that was kept during
+`v1.x`.
 
 ```bash
 composer remove channor/hashed-route-key
-composer require channor/opaque-route-key
+composer require channor/opaque-route-key:^2.0
 ```
 
-Preferred imports:
+If you already use `channor/opaque-route-key`, update the existing constraint instead:
+
+```bash
+composer require channor/opaque-route-key:^2.0
+```
+
+Update old imports:
 
 ```php
 use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
@@ -82,17 +88,15 @@ use Channor\OpaqueRouteKey\OpaqueRouteKeyServiceProvider;
 use Channor\OpaqueRouteKey\UsesOpaqueRouteKey;
 ```
 
-Deprecated imports remain available throughout `v1.x`:
+Rename old configuration:
 
-```php
-use Channor\HashedRouteKey\HashedRouteKeyCodec;
-use Channor\HashedRouteKey\HashedRouteKeyServiceProvider;
-use Channor\HashedRouteKey\UsesHashedRouteKey;
-```
+- `config/hashed-route-key.php` -> `config/opaque-route-key.php`
+- `HASHED_ROUTE_KEY_SALT` -> `OPAQUE_ROUTE_KEY_SALT`
+- `hashed-route-key-config` publish tag -> `opaque-route-key-config`
 
-The old `hashed-route-key` config name, `HASHED_ROUTE_KEY_SALT` environment variable, and
-`hashed-route-key-config` publish tag are also still supported. They are planned for removal in
-`v2.0.0`.
+Keep the same effective salt value when renaming config/env keys. Route-key outputs remain stable
+when the effective salt and per-model strategy settings stay the same. If you still need the
+deprecated `Channor\HashedRouteKey` API, stay on `channor/opaque-route-key:^1.1`.
 
 ## How it works
 
@@ -119,9 +123,6 @@ invalidate existing URLs or change future generated URLs for that model:
 - auto-reserved model names: `config('opaque-route-key.auto_reserve_model_names')`
 - reserved-word attempts: `config('opaque-route-key.reserved_word_max_attempts')`
 
-The old `config('hashed-route-key.*')` keys remain supported for compatibility, but new code should
-use `config('opaque-route-key.*')`.
-
 ## Reserved words
 
 Use `reserved_words` when a generated route key would collide with route words such as `create`,
@@ -129,26 +130,37 @@ Use `reserved_words` when a generated route key would collide with route words s
 
 ```php
 return [
-    'reserved_words' => ['create', 'edit', 'new'],
+    'reserved_words' => [
+        // 'admin',
+        // 'root',
+        // 'create',
+        // 'edit',
+        // 'new',
+        // 'settings',
+        // 'search',
+    ],
     'reserved_words_case_sensitive' => true,
     'auto_reserve_model_names' => false,
     'reserved_word_max_attempts' => 10,
 ];
 ```
 
-The default list is empty to preserve existing outputs. When a key collides with a reserved word, the
-codec retries deterministically until it finds a non-reserved key or exhausts
-`reserved_word_max_attempts`.
+The default list is empty to preserve existing outputs and because reserved route words are
+application-specific. With the default encoding settings, generated keys are at least 7 characters
+long, so shorter words cannot be emitted. When a key collides with a reserved word, the codec
+retries deterministically until it finds a non-reserved key or exhausts
+`reserved_word_max_attempts`. If every configured attempt collides, encoding throws a
+`RuntimeException` instead of emitting a reserved route key.
 
-Manual reserved words are case-sensitive by default in `v1.x`. Set `reserved_words_case_sensitive`
-to `false` if reserving `admin` should also avoid emitting `aDmIn`.
+Manual reserved words are case-sensitive by default. Reserving `account` will not reserve `aCcOuNt`
+unless you set `reserved_words_case_sensitive` to `false`.
 
 When `auto_reserve_model_names` is `true`, each model using the trait also reserves its lowercase
 singular and plural class basename. For example, `Account` reserves `account` and `accounts`.
 These auto-reserved model names are always matched case-insensitively, independent of
-`reserved_words_case_sensitive`. Override `routeKeyReservedModelNames()` on the model if your route
-words need a different shape. The default is `false` throughout `v1.x`; it is planned to become
-`true` in `v2.0.0`.
+`reserved_words_case_sensitive`, so `account` also reserves keys such as `aCcOuNt`. Override
+`routeKeyReservedModelNames()` on the model if your route words need a different shape. The default
+is `false`.
 
 Attempt `0` is the original `v1.0.x` encoding, so existing URLs remain decodable even if you later
 reserve a word that an existing key used. However, enabling or changing `reserved_words`,
@@ -174,7 +186,7 @@ The command:
 
 - resolves common model inputs such as `User`, `Users`, or a fully qualified class name
 - can scan all models using the trait with `--all`
-- verifies that the model uses `UsesOpaqueRouteKey`, or the deprecated `UsesHashedRouteKey`
+- verifies that the model uses `UsesOpaqueRouteKey`
 - writes model strategy assertions and fixed-output route-key assertions using a fixed salt base
 - writes a separate `ReservedOpaqueRouteKeyTest` with `--reserved` to pin reserved-word stability
 
@@ -225,9 +237,9 @@ For example, `App\Models\Project` uses a salt shaped like:
 config('opaque-route-key.salt').':project'
 ```
 
-The default config uses `OPAQUE_ROUTE_KEY_SALT`, falls back to `HASHED_ROUTE_KEY_SALT`, and then falls
-back to `APP_KEY`. Changing the effective salt changes all emitted keys for all models using the
-trait unless you keep the effective salt stable.
+The default config uses `OPAQUE_ROUTE_KEY_SALT` and falls back to `APP_KEY`. Changing the effective
+salt changes all emitted keys for all models using the trait unless you keep the effective salt
+stable.
 
 If you need a custom or shared model suffix, override `routeKeySaltSuffix()` on that model. Keep the
 suffix stable once URLs are public.
@@ -293,13 +305,21 @@ $id = $codec->decode($routeKey); // 42
 
 ```php
 return [
-    'salt' => env('OPAQUE_ROUTE_KEY_SALT', env('HASHED_ROUTE_KEY_SALT', env('APP_KEY'))),
+    'salt' => env('OPAQUE_ROUTE_KEY_SALT', env('APP_KEY')),
     'append_route_key' => true,
     'default_attribute_name' => 'route_key',
     'min_payload_length' => 3,
     'check_length' => 4,
     'offset_multiplier' => 1,
-    'reserved_words' => [],
+    'reserved_words' => [
+        // 'admin',
+        // 'root',
+        // 'create',
+        // 'edit',
+        // 'new',
+        // 'settings',
+        // 'search',
+    ],
     'reserved_words_case_sensitive' => true,
     'auto_reserve_model_names' => false,
     'reserved_word_max_attempts' => 10,
@@ -316,7 +336,7 @@ return [
 | `offset_multiplier` | Shifts encoding space for low IDs | `1` |
 | `reserved_words` | Generated keys to avoid emitting | `[]` |
 | `reserved_words_case_sensitive` | Match manual reserved words by exact case only | `true` |
-| `auto_reserve_model_names` | Reserve each model's lowercase singular and plural basename | `false` in `v1.x`; planned `true` in `v2.0.0` |
+| `auto_reserve_model_names` | Reserve each model's lowercase singular and plural basename | `false` |
 | `reserved_word_max_attempts` | Maximum candidate encodings, including the original | `10` |
 
 ## Capacity math (base-62)

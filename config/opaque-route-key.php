@@ -13,7 +13,7 @@ return [
     | existing route keys.
     |
     */
-    'salt' => env('OPAQUE_ROUTE_KEY_SALT', env('HASHED_ROUTE_KEY_SALT', env('APP_KEY'))),
+    'salt' => env('OPAQUE_ROUTE_KEY_SALT', env('APP_KEY')),
 
     /*
     |--------------------------------------------------------------------------
@@ -53,8 +53,20 @@ return [
     | Words listed here will not be emitted as generated route keys. Use this
     | to avoid collisions with route paths such as "create", "edit", or "new".
     |
+    | The default list is empty because reserved words are application-specific.
+    | With the default encoding settings, generated keys are at least 7
+    | characters long, so shorter words cannot be emitted.
+    |
     */
-    'reserved_words' => [],
+    'reserved_words' => [
+        // 'admin',
+        // 'root',
+        // 'create',
+        // 'edit',
+        // 'new',
+        // 'settings',
+        // 'search',
+    ],
     'reserved_words_case_sensitive' => true,
 
     /*

@@ -2,6 +2,21 @@
 
 All notable changes to this project will be documented in this file.
 
+## [2.0.0] - Unreleased
+
+### Removed
+- Removed deprecated `Channor\HashedRouteKey` namespace, `HashedRouteKeyCodec`, `UsesHashedRouteKey`, and `HashedRouteKeyServiceProvider`.
+- Removed `HASHED_ROUTE_KEY_SALT`, `hashed-route-key` config, and `hashed-route-key-config` publish tag support.
+- Removed `channor/hashed-route-key` replacement metadata from Composer package metadata.
+
+### Changed
+- The contract test generator now only discovers models using `Channor\OpaqueRouteKey\UsesOpaqueRouteKey`.
+
+### Compatibility
+- Existing route-key outputs remain stable when applications keep the same effective salt and per-model route-key strategy.
+- `reserved_words_case_sensitive` remains `true` by default.
+- `auto_reserve_model_names` remains `false` by default.
+
 ## [1.1.0] - 2026-04-07
 
 ### Added
@@ -33,6 +48,7 @@ All notable changes to this project will be documented in this file.
 - Stable route-key contract test generator command.
 - Standalone package test suite with Orchestra Testbench.
 
+[2.0.0]: https://github.com/channor/opaque-route-key/compare/v1.1.0...HEAD
 [1.1.0]: https://github.com/channor/opaque-route-key/releases/tag/v1.1.0
 [1.0.1]: https://github.com/channor/opaque-route-key/releases/tag/v1.0.1
 [1.0.0]: https://github.com/channor/opaque-route-key/releases/tag/v1.0.0

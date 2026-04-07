@@ -4,7 +4,6 @@ declare(strict_types=1);
 
 namespace Channor\OpaqueRouteKey\Console\Commands;
 
-use Channor\HashedRouteKey\UsesHashedRouteKey;
 use Channor\OpaqueRouteKey\OpaqueRouteKeyCodec;
 use Channor\OpaqueRouteKey\UsesOpaqueRouteKey;
 use Illuminate\Console\Command;
@@ -43,7 +42,7 @@ class GenerateRouteKeyTestCommand extends Command
         }
 
         if ($modelClasses === [] && ! $generateReservedConfigTest) {
-            $this->warn('No models using UsesOpaqueRouteKey or deprecated UsesHashedRouteKey were found for the requested scope.');
+            $this->warn('No models using UsesOpaqueRouteKey were found for the requested scope.');
 
             return self::FAILURE;
         }
@@ -144,10 +143,9 @@ class GenerateRouteKeyTestCommand extends Command
 
         if (! $this->usesOpaqueRouteKey($modelClass)) {
             $this->error(sprintf(
-                'Model [%s] does not use %s or deprecated %s.',
+                'Model [%s] does not use %s.',
                 $modelClass,
                 UsesOpaqueRouteKey::class,
-                UsesHashedRouteKey::class,
             ));
 
             return null;
@@ -251,10 +249,7 @@ class GenerateRouteKeyTestCommand extends Command
      */
     private function usesOpaqueRouteKey(string $modelClass): bool
     {
-        $traits = class_uses_recursive($modelClass);
-
-        return in_array(UsesOpaqueRouteKey::class, $traits, true)
-            || in_array(UsesHashedRouteKey::class, $traits, true);
+        return in_array(UsesOpaqueRouteKey::class, class_uses_recursive($modelClass), true);
     }
 
     /**

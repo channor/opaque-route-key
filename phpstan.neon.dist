@@ -4,4 +4,3 @@ parameters:
         - src
     ignoreErrors:
         - '#Trait Channor\\OpaqueRouteKey\\UsesOpaqueRouteKey is used zero times and is not analysed\.#'
-        - '#Trait Channor\\HashedRouteKey\\UsesHashedRouteKey is used zero times and is not analysed\.#'

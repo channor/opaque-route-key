@@ -20,7 +20,6 @@ abstract class TestCase extends BaseTestCase
     {
         $app['config']->set('app.key', 'base64:'.base64_encode(str_repeat('a', 32)));
         $app['config']->set('opaque-route-key.salt', $app['config']->get('app.key'));
-        $app['config']->set('hashed-route-key.salt', $app['config']->get('app.key'));
         $app['config']->set('database.default', 'testing');
         $app['config']->set('database.connections.testing', [
             'driver' => 'sqlite',

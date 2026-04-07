@@ -312,7 +312,7 @@ class GenerateRouteKeyTestCommandTest extends TestCase
             ], $emptyRoot);
 
             $this->assertSame(GenerateRouteKeyTestCommand::FAILURE, $tester->getStatusCode());
-            $this->assertStringContainsString('No models using UsesOpaqueRouteKey or deprecated UsesHashedRouteKey were found', $tester->getDisplay());
+            $this->assertStringContainsString('No models using UsesOpaqueRouteKey were found', $tester->getDisplay());
         } finally {
             File::deleteDirectory($emptyRoot);
         }

@@ -42,12 +42,11 @@ class ServiceProviderTest extends TestCase
         $this->assertContains(config_path('opaque-route-key.php'), $paths);
     }
 
-    public function test_legacy_config_publishable_under_deprecated_tag(): void
+    public function test_legacy_config_is_not_publishable(): void
     {
         $paths = ServiceProvider::pathsToPublish(OpaqueRouteKeyServiceProvider::class, 'hashed-route-key-config');
 
-        $this->assertNotEmpty($paths);
-        $this->assertContains(config_path('hashed-route-key.php'), $paths);
+        $this->assertEmpty($paths);
     }
 
     public function test_route_key_generate_test_command_is_registered(): void
